@@ -1,2 +1,1256 @@
-<html>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TIE Fighter Wireframe Simulator - Controlable</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: black;
+            color: #00FF00;
+            font-family: 'Courier New', monospace;
+        }
+        canvas {
+            display: block;
+        }
+        #controls {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border: 1px solid #00FF00;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div id="controls">
+        <b>CONTROLES:</b><br>
+        WASD: Movimiento<br>
+        Q/E: Rotación<br>
+        Mouse: Apuntar<br>
+        Rueda: Zoom
+    </div>
+    <canvas id="tieCanvas"></canvas>
+
+    <script>
+// Configuración inicial
+const canvas = document.getElementById('tieCanvas');
+const ctx = canvas.getContext('2d');
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+// Colores y estilos
+ctx.strokeStyle = '#00FF00'; // TIE Fighter color
+ctx.lineWidth = 1.5;
+ctx.fillStyle = 'rgba(0, 0, 0, 0)';
+
+// Modelo 3D del TIE Fighter
+const tieFighter = {
+    leftWing: [
+        { x: -40, y: 0, z: 0 },    // Centro
+        { x: -80, y: -40, z: 0 },   // Esquina superior
+        { x: -120, y: 0, z: 0 },    // Punto medio exterior
+        { x: -80, y: 40, z: 0 },    // Esquina inferior
+        { x: -40, y: 0, z: 0 },     // Volver al centro
+        { x: -80, y: -40, z: 40 },   // Ala superior 3D
+        { x: -120, y: 0, z: 40 },   // Punto medio exterior 3D
+        { x: -80, y: 40, z: 40 },    // Ala inferior 3D
+        { x: -40, y: 0, z: 0 }      // Cerrar
+    ],
+    rightWing: [
+        { x: 40, y: 0, z: 0 },
+        { x: 80, y: -40, z: 0 },
+        { x: 120, y: 0, z: 0 },
+        { x: 80, y: 40, z: 0 },
+        { x: 40, y: 0, z: 0 },
+        { x: 80, y: -40, z: 40 },
+        { x: 120, y: 0, z: 40 },
+        { x: 80, y: 40, z: 40 },
+        { x: 40, y: 0, z: 0 }
+    ],
+    cockpit: [
+        { x: 0, y: -25, z: 0 },     // Arriba
+        { x: 0, y: 25, z: 0 },      // Abajo
+        { x: 0, y: 0, z: 0 },       // Centro
+        { x: -25, y: 0, z: 0 },     // Izquierda
+        { x: 25, y: 0, z: 0 },      // Derecha
+        { x: 0, y: 0, z: -25 },     // Frente
+        { x: 0, y: 0, z: 25 }       // Atrás
+    ],
+    connector: [
+        { x: -40, y: 0, z: 0 },
+        { x: 40, y: 0, z: 0 }
+    ],
+    laserCannons: [
+        { x: -20, y: 0, z: -35 }, // Cañón izquierdo
+        { x: 20, y: 0, z: -35 }   // Cañón derecho
+    ],
+    torpedoLaunchers: [
+        { x: -10, y: 25, z: -30 }, // Lanzador izquierdo inferior
+        { x: 10, y: 25, z: -30 }   // Lanzador derecho inferior
+    ],
+    hyperdriveThrusters: [
+        { x: -15, y: -15, z: 30 }, // Trasero superior izquierdo
+        { x: 15, y: -15, z: 30 },  // Trasero superior derecho
+        { x: -15, y: 15, z: 30 },  // Trasero inferior izquierdo
+        { x: 15, y: 15, z: 30 }   // Trasero inferior derecho
+    ]
+};
+
+// Modelo 3D del X-Wing
+const xWingModel = {
+    body: [
+        { x: 0, y: 0, z: -30 }, { x: 0, y: 0, z: 30 }, // Central body
+        { x: -10, y: 0, z: -20 }, { x: 10, y: 0, z: -20 }, // Nose
+        { x: 0, y: -10, z: 20 }, { x: 0, y: 10, z: 20 } // Rear
+    ],
+    wings: [
+        // Top Left Wing
+        { x: -10, y: -10, z: 0 }, { x: -60, y: -10, z: 10 }, { x: -60, y: -20, z: 10 }, { x: -10, y: -20, z: 0 }, { x: -10, y: -10, z: 0 },
+        // Top Right Wing
+        { x: 10, y: -10, z: 0 }, { x: 60, y: -10, z: 10 }, { x: 60, y: -20, z: 10 }, { x: 10, y: -20, z: 0 }, { x: 10, y: -10, z: 0 },
+        // Bottom Left Wing
+        { x: -10, y: 10, z: 0 }, { x: -60, y: 10, z: 10 }, { x: -60, y: 20, z: 10 }, { x: -10, y: 20, z: 0 }, { x: -10, y: 10, z: 0 },
+        // Bottom Right Wing
+        { x: 10, y: 10, z: 0 }, { x: 60, y: 10, z: 10 }, { x: 60, y: 20, z: 10 }, { x: 10, y: 20, z: 0 }, { x: 10, y: 10, z: 0 }
+    ],
+    cannons: [
+        { x: -60, y: -15, z: 15 }, // TL
+        { x: 60, y: -15, z: 15 },  // TR
+        { x: -60, y: 15, z: 15 },  // BL
+        { x: 60, y: 15, z: 15 }   // BR
+    ]
+};
+
+
+// Estado del simulador
+const state = {
+    pos: { x: 0, y: 50, z: -500 },  // Posición en el espacio 3D (nave un poco más baja)
+    rot: { x: 0, y: 0, z: 0 },     // Rotación (ángulos)
+    vel: { x: 0, y: 0, z: 0 },     // Velocidad
+    keys: {},                       // Teclas presionadas
+    mouse: { x: 0, y: 0 },          // Posición del mouse
+    zoom: 1,                        // Nivel de zoom
+    speed: 3,                       // Velocidad base
+    firingLaser: false,             // Estado del disparo láser
+    firingTorpedo: false,           // Estado del disparo de torpedo
+    torpedos: [],                   // Array para almacenar torpedos activos
+    hyperSpeed: false,              // Estado de la hipervelocidad
+    stars: [],                      // Para el efecto de estrellas en hipervelocidad
+    enemies: [],                    // Array para almacenar naves enemigas
+    enemyLasers: [],                // Array para almacenar láseres enemigos
+    eliminatedEnemies: 0,           // Contador de enemigos eliminados
+    activeEnemies: 0,               // Contador de enemigos activos
+    playerHealth: 10,               // Salud del jugador
+    playerMaxHealth: 10,            // Salud máxima del jugador
+    laserUpgradeLevel: 0,           // Nivel de mejora del láser
+    explosionParticles: [],         // Partículas para el efecto de explosión
+    lastLaserFireTime: 0,           // Tiempo del último disparo láser
+    laserFireCooldown: 200,         // Cooldown para disparo láser
+    lastHealthRegenTime: 0,         // Tiempo de la última regeneración de energía
+    healthRegenCooldown: 1500,      // Cooldown para empezar a regenerar (1.5 segundos)
+    healthRegenRate: 0.001,         // Regeneración de energía por milisegundo
+    cameraShake: {                  // Estado de la sacudida de cámara
+        intensity: 0,
+        duration: 0,
+        startTime: 0
+    },
+    impactFlashes: [],              // Para los efectos visuales de impacto
+    selectedTarget: null,           // El enemigo actualmente seleccionado como objetivo (por hover)
+    lockedTarget: null,             // El enemigo actualmente bloqueado como objetivo (por 'F')
+    lastTorpedoFireTime: 0,         // Tiempo del último disparo de torpedo
+    torpedoFireCooldown: 2000,       // Cooldown para disparo de torpedo (2 segundos)
+    fKeyPressed: false              // Para detectar la pulsación única de la tecla 'F'
+};
+
+// Clase para un torpedo de protón
+class ProtonTorpedo {
+    constructor(startX, startY, startZ, targetEnemy) {
+        this.pos = { x: startX, y: startY, z: startZ };
+        this.targetEnemy = targetEnemy; // Referencia al objeto enemigo
+        this.speed = 15; // Velocidad del torpedo
+        this.color = '#00BFFF'; // Color azul para torpedos teledirigidos
+        this.size = 5; // Tamaño del torpedo
+        this.lifetime = 240; // Duración de vida en cuadros (más larga para guiado y rango)
+        this.frame = 0;
+    }
+
+    update() {
+        if (!this.targetEnemy || this.targetEnemy.health <= 0) {
+            // Si el objetivo ya no existe o está destruido, el torpedo sigue recto o se autodestruye
+            this.lifetime = 0; // Se autodestruye
+            return;
+        }
+
+        // Mover el torpedo hacia el objetivo (guiado)
+        const dx = this.targetEnemy.pos.x - this.pos.x;
+        const dy = this.targetEnemy.pos.y - this.pos.y;
+        const dz = this.targetEnemy.pos.z - this.pos.z;
+
+        const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+        if (distance > this.speed) {
+            this.pos.x += (dx / distance) * this.speed;
+            this.pos.y += (dy / distance) * this.speed;
+            this.pos.z += (dz / distance) * this.speed;
+        } else {
+            // Llegó al objetivo, colisionar
+            this.lifetime = 0; // El torpedo "impacta"
+            this.targetEnemy.health -= 3; // Hacer suficiente daño al objetivo para eliminar un X-Wing (salud 3)
+            // Si el enemigo fue destruido por el torpedo, genera explosión
+            if (this.targetEnemy.health <= 0) {
+                 for (let i = 0; i < 30; i++) {
+                    const speed = Math.random() * 10 + 2;
+                    const angle = Math.random() * Math.PI * 2;
+                    const pitch = Math.random() * Math.PI - Math.PI / 2;
+                    const velX = speed * Math.cos(angle) * Math.cos(pitch);
+                    const velY = speed * Math.sin(angle) * Math.cos(pitch);
+                    const velZ = speed * Math.sin(pitch);
+                    state.explosionParticles.push(new ExplosionParticle(this.targetEnemy.pos.x, this.targetEnemy.pos.y, this.targetEnemy.pos.z, velX, velY, velZ));
+                }
+                const index = state.enemies.indexOf(this.targetEnemy);
+                if (index > -1) {
+                    state.enemies.splice(index, 1);
+                    state.eliminatedEnemies++;
+                    state.activeEnemies--;
+                }
+                // Deseleccionar y desbloquear si el objetivo fue destruido
+                if (state.selectedTarget === this.targetEnemy) {
+                    state.selectedTarget = null;
+                }
+                if (state.lockedTarget === this.targetEnemy) {
+                    state.lockedTarget = null;
+                }
+            }
+        }
+        this.frame++;
+    }
+
+    draw() {
+        const proj = project(this.pos, true); // Proyectar sin sacudida
+        ctx.save();
+        ctx.fillStyle = this.color;
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = this.color;
+        ctx.beginPath();
+        ctx.arc(proj.x, proj.y, this.size * state.zoom, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+    }
+
+    isAlive() {
+        return this.frame < this.lifetime;
+    }
+}
+
+// Clase para los láseres enemigos
+class EnemyLaser {
+    constructor(startX, startY, startZ, targetX, targetY, targetZ) {
+        this.pos = { x: startX, y: startY, z: startZ };
+        this.target = { x: targetX, y: targetY, z: targetZ };
+        this.speed = 20;
+        this.color = '#FF0000'; // Rojo
+        this.size = 2;
+        this.lifetime = 90;
+        this.frame = 0;
+
+        // Calcular dirección para movimiento constante
+        const dx = this.target.x - this.pos.x;
+        const dy = this.target.y - this.pos.y;
+        const dz = this.target.z - this.pos.z;
+        const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        this.vel = {
+            x: (dx / distance) * this.speed,
+            y: (dy / distance) * this.speed,
+            z: (dz / distance) * this.speed
+        };
+    }
+
+    update() {
+        this.pos.x += this.vel.x;
+        this.pos.y += this.vel.y;
+        this.pos.z += this.vel.z;
+        this.frame++;
+    }
+
+    draw() {
+        const proj = project(this.pos, true); // Proyectar sin sacudida
+        ctx.save();
+        ctx.strokeStyle = this.color;
+        ctx.lineWidth = this.size;
+        ctx.shadowBlur = 5;
+        ctx.shadowColor = this.color;
+        ctx.beginPath();
+        ctx.arc(proj.x, proj.y, this.size, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+    }
+
+    isAlive() {
+        return this.frame < this.lifetime;
+    }
+}
+
+
+// Clase para naves enemigas (X-Wing)
+class EnemyXWing {
+    constructor(x, y, z) {
+        this.id = Math.random(); // Identificador único para cada enemigo
+        this.pos = { x: x, y: y, z: z };
+        this.rot = { x: 0, y: 0, z: 0 };
+        this.maxHealth = 3; // Salud máxima del X-Wing
+        this.health = this.maxHealth; // Salud actual del X-Wing
+        this.lastShotTime = 0;
+        this.fireRate = 1000 + Math.random() * 1000; // Entre 1 y 2 segundos
+    }
+
+    update(deltaTime) {
+        const currentTime = Date.now();
+
+        // Calcular un punto objetivo que no sea directamente el jugador para añadir agilidad
+        const wiggleFactor = 100; // Qué tan lejos del centro del jugador pueden moverse
+        const wiggleSpeed = 0.001; // Velocidad del movimiento de "wiggle"
+
+        // Añadir una pequeña oscilación o evasión al punto objetivo
+        let desiredTargetX = state.pos.x + Math.sin(currentTime * wiggleSpeed) * wiggleFactor;
+        let desiredTargetY = state.pos.y + Math.cos(currentTime * wiggleSpeed * 1.2) * wiggleFactor;
+        let desiredTargetZ = state.pos.z; // Principalmente perseguir en Z
+
+        const dx = desiredTargetX - this.pos.x;
+        const dy = desiredTargetY - this.pos.y;
+        const dz = desiredTargetZ - this.pos.z;
+
+        const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+        const approachSpeed = 1 * deltaTime; // Velocidad de acercamiento base
+        const maxApproachSpeed = 3 * deltaTime; // Velocidad máxima de movimiento enemigo
+
+        if (distance > 250) { // Si está lejos, acercarse más rápido
+            const moveAmount = Math.min(approachSpeed + (distance - 250) * 0.005, maxApproachSpeed);
+            this.pos.x += (dx / distance) * moveAmount;
+            this.pos.y += (dy / distance) * moveAmount;
+            this.pos.z += (dz / distance) * moveAmount;
+        } else if (distance < 100) { // Si está muy cerca, alejarse un poco
+            this.pos.x -= (dx / distance) * approachSpeed * 0.5;
+            this.pos.y -= (dy / distance) * approachSpeed * 0.5;
+            this.pos.z -= (dz / distance) * approachSpeed * 0.5;
+        } else { // Mantener distancia y moverse lateralmente (strafe)
+            const strafeAmount = 0.8 * deltaTime; // Velocidad de strafe
+            // Calcular un vector perpendicular para el strafe
+            const angle = Math.atan2(dx, dz);
+            this.pos.x += Math.cos(angle + Math.PI / 2) * strafeAmount * Math.sin(currentTime * 0.003);
+            this.pos.z += -Math.sin(angle + Math.PI / 2) * strafeAmount * Math.sin(currentTime * 0.003);
+
+            // Añadir un pequeño movimiento vertical
+            this.pos.y += Math.sin(currentTime * 0.002) * strafeAmount * 0.5;
+        }
+        
+        // Simular rotación para apuntar al jugador (interpolación suave para mayor agilidad)
+        const targetYaw = Math.atan2(dx, dz);
+        const targetPitch = -Math.atan2(dy, Math.sqrt(dx * dx + dz * dz));
+        const rotationSpeed = 0.05 * deltaTime; // Velocidad de rotación aumentada
+
+        this.rot.y += (targetYaw - this.rot.y) * rotationSpeed;
+        this.rot.x += (targetPitch - this.rot.x) * rotationSpeed;
+
+
+        // Disparar
+        if (currentTime - this.lastShotTime > this.fireRate) {
+            // Disparar desde la posición del cañón del X-Wing
+            const cannonOffset = { x: 0, y: 0, z: -60 }; // Punto frontal del X-Wing para el disparo
+            
+            // Transformar el offset del cañón por la rotación del X-Wing
+            const cosRx = Math.cos(this.rot.x);
+            const sinRx = Math.sin(this.rot.x);
+            const cosRy = Math.cos(this.rot.y);
+            const sinRy = Math.sin(this.rot.y);
+            const cosRz = Math.cos(this.rot.z);
+            const sinRz = Math.sin(this.rot.z);
+
+            let rotatedX = cannonOffset.x;
+            let rotatedY = cannonOffset.y;
+            let rotatedZ = cannonOffset.z;
+
+            // Rotate Z
+            let tempX = rotatedX * cosRz - rotatedY * sinRz;
+            let tempY = rotatedX * sinRz + rotatedY * cosRz;
+            rotatedX = tempX;
+            rotatedY = tempY;
+
+            // Rotate Y
+            tempX = rotatedX * cosRy - rotatedZ * sinRy;
+            let tempZ = rotatedX * sinRy + rotatedZ * cosRy;
+            rotatedX = tempX;
+            rotatedZ = tempZ;
+
+            // Rotate X
+            tempY = rotatedY * cosRx - rotatedZ * sinRx;
+            tempZ = rotatedY * sinRx + rotatedZ * cosRx;
+            rotatedY = tempY;
+            rotatedZ = tempZ;
+
+            const laserStartX = this.pos.x + rotatedX;
+            const laserStartY = this.pos.y + rotatedY;
+            const laserStartZ = this.pos.z + rotatedZ;
+
+            // El láser enemigo apunta directamente al centro del jugador
+            state.enemyLasers.push(new EnemyLaser(laserStartX, laserStartY, laserStartZ, state.pos.x, state.pos.y, state.pos.z));
+            this.lastShotTime = currentTime;
+        }
+    }
+
+    draw() {
+        ctx.strokeStyle = '#FF0000'; // Color rojo para el X-Wing
+        ctx.lineWidth = 1;
+
+        const drawPart = (points) => {
+            ctx.beginPath();
+            let firstPoint = true;
+            points.forEach(p => {
+                // Transformar puntos del modelo por la rotación y posición del enemigo
+                let x = p.x;
+                let y = p.y;
+                let z = p.z;
+
+                // Rotación en Z
+                let tempX = x * Math.cos(this.rot.z) - y * Math.sin(this.rot.z);
+                let tempY = x * Math.sin(this.rot.z) + y * Math.cos(this.rot.z);
+                x = tempX;
+                y = tempY;
+
+                // Rotación en Y
+                tempX = x * Math.cos(this.rot.y) - z * Math.sin(this.rot.y);
+                let tempZ = x * Math.sin(this.rot.y) + z * Math.cos(this.rot.y);
+                x = tempX;
+                z = tempZ;
+
+                // Rotación en X
+                tempY = y * Math.cos(this.rot.x) - z * Math.sin(this.rot.x);
+                tempZ = y * Math.sin(this.rot.x) + z * Math.cos(this.rot.x);
+                y = tempY;
+                z = tempZ;
+
+                const projectedPoint = project({
+                    x: x + this.pos.x,
+                    y: y + this.pos.y,
+                    z: z + this.pos.z
+                }, true); // Proyectar sin sacudida
+
+                if (firstPoint) {
+                    ctx.moveTo(projectedPoint.x, projectedPoint.y);
+                    firstPoint = false;
+                } else {
+                    ctx.lineTo(projectedPoint.x, projectedPoint.y);
+                }
+            });
+            ctx.stroke();
+        };
+
+        drawPart(xWingModel.body);
+        drawPart(xWingModel.wings);
+        xWingModel.cannons.forEach(cannon => {
+            let x = cannon.x;
+            let y = cannon.y;
+            let z = cannon.z;
+
+            // Rotación en Z
+            let tempX = x * Math.cos(this.rot.z) - y * Math.sin(this.rot.z);
+            let tempY = x * Math.sin(this.rot.z) + y * Math.cos(this.rot.z);
+            x = tempX;
+            y = tempY;
+
+            // Rotación en Y
+            tempX = x * Math.cos(this.rot.y) - z * Math.sin(this.rot.y);
+            let tempZ = x * Math.sin(this.rot.y) + z * Math.cos(this.rot.y);
+            x = tempX;
+            z = tempZ;
+
+            // Rotación en X
+            tempY = y * Math.cos(this.rot.x) - z * Math.sin(this.rot.x);
+            tempZ = y * Math.sin(this.rot.x) + z * Math.cos(this.rot.x);
+            y = tempY;
+            z = tempZ;
+
+            const projectedCannon = project({
+                x: x + this.pos.x,
+                y: y + this.pos.y,
+                z: z + this.pos.z
+            }, true); // Proyectar sin sacudida
+            ctx.beginPath();
+            ctx.arc(projectedCannon.x, projectedCannon.y, 2 * state.zoom, 0, Math.PI * 2);
+            ctx.stroke();
+        });
+
+        // ----- DIBUJAR BARRA DE ENERGÍA ENEMIGA -----
+        const projectedEnemyCenter = project(this.pos, true);
+        const barWidth = 40 * state.zoom;
+        const barHeight = 5 * state.zoom;
+        const barYOffset = -60 * state.zoom; // Posición de la barra sobre la nave
+
+        const healthRatio = this.health / this.maxHealth;
+
+        // Fondo de la barra de energía
+        ctx.save();
+        ctx.strokeStyle = '#FFFFFF'; // Marco blanco
+        ctx.lineWidth = 1;
+        ctx.strokeRect(projectedEnemyCenter.x - barWidth / 2, projectedEnemyCenter.y + barYOffset, barWidth, barHeight);
+
+        // Relleno de la barra de energía
+        if (healthRatio > 0.6) {
+            ctx.fillStyle = '#00FF00'; // Verde
+        } else if (healthRatio > 0.3) {
+            ctx.fillStyle = '#FFFF00'; // Amarillo
+        } else {
+            ctx.fillStyle = '#FF0000'; // Rojo
+        }
+        ctx.fillRect(projectedEnemyCenter.x - barWidth / 2, projectedEnemyCenter.y + barYOffset, barWidth * healthRatio, barHeight);
+        ctx.restore();
+        // ---------------------------------------------
+
+
+        // Dibujar indicador si es el objetivo BLOQUEADO
+        if (state.lockedTarget && state.lockedTarget.id === this.id) {
+            const size = 60 * state.zoom; // Tamaño del indicador de bloqueo
+            ctx.save();
+            ctx.strokeStyle = '#00FF00'; // Color verde brillante para bloqueo
+            ctx.lineWidth = 3;
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = '#00FF00';
+            ctx.beginPath();
+            ctx.arc(projectedEnemyCenter.x, projectedEnemyCenter.y, size / 2, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
+        } else if (state.selectedTarget && state.selectedTarget.id === this.id) {
+            // Dibujar indicador si es el objetivo SELECCIONADO (hover) y no está bloqueado
+            const size = 50 * state.zoom; // Tamaño del indicador de hover
+            ctx.save();
+            ctx.strokeStyle = '#FFFF00'; // Color amarillo
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.rect(projectedEnemyCenter.x - size / 2, projectedEnemyCenter.y - size / 2, size, size);
+            ctx.stroke();
+            ctx.restore();
+        }
+    }
+
+    getBounds() {
+        // Simplificado: un bounding box esférico
+        const center = this.pos;
+        const radius = 40; // Aproximado para el X-Wing
+        return { center, radius };
+    }
+}
+
+// Clase para partículas de explosión
+class ExplosionParticle {
+    constructor(x, y, z, velX, velY, velZ) {
+        this.pos = { x: x, y: y, z: z };
+        this.vel = { x: velX, y: velY, z: velZ };
+        this.life = 60; // Frames de vida
+        this.color = `rgb(${Math.floor(255 * Math.random())}, ${Math.floor(255 * Math.random())}, ${Math.floor(255 * Math.random())})`; // Color aleatorio
+    }
+
+    update() {
+        this.pos.x += this.vel.x;
+        this.pos.y += this.vel.y;
+        this.pos.z += this.vel.z;
+        this.life--;
+    }
+
+    draw() {
+        if (this.life <= 0) return;
+        const proj = project(this.pos, true); // Proyectar sin sacudida
+        ctx.save();
+        ctx.strokeStyle = this.color;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(proj.x, proj.y, 1 + (60 - this.life) / 10, 0, Math.PI * 2); // Crece un poco
+        ctx.stroke();
+        ctx.restore();
+    }
+}
+
+// Clase para efectos de impacto
+class ImpactFlash {
+    constructor(x, y, z) {
+        this.pos = { x: x, y: y, z: z };
+        this.size = 5;
+        this.life = 10; // Duración en frames
+        this.color = 'rgba(255, 255, 255, 1)';
+    }
+
+    update() {
+        this.life--;
+        this.size += 1;
+        this.color = `rgba(255, 255, 255, ${this.life / 10})`;
+    }
+
+    draw() {
+        if (this.life <= 0) return;
+        const proj = project(this.pos, true); // Proyectar sin sacudida
+        ctx.save();
+        ctx.fillStyle = this.color;
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = 'white';
+        ctx.beginPath();
+        ctx.arc(proj.x, proj.y, this.size * state.zoom, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+    }
+
+    isAlive() {
+        return this.life > 0;
+    }
+}
+
+
+// Inicializar estrellas para el fondo
+function initStars() {
+    state.stars = [];
+    for (let i = 0; i < 200; i++) {
+        state.stars.push({
+            x: (Math.random() - 0.5) * 2000,
+            y: (Math.random() - 0.5) * 2000,
+            z: Math.random() * 2000 - 1000, // Profundidad aleatoria
+            size: Math.random() * 2 + 0.5
+        });
+    }
+}
+initStars();
+
+// Generar enemigo aleatorio
+function spawnEnemy() {
+    if (state.enemies.length < 5) { // Limitar el número de enemigos activos
+        const x = (Math.random() - 0.5) * 1000;
+        const y = (Math.random() - 0.5) * 1000;
+        const z = state.pos.z - 1000 - Math.random() * 1000; // Aparecer delante del jugador
+        state.enemies.push(new EnemyXWing(x, y, z));
+        state.activeEnemies++;
+    }
+}
+
+// Proyección 3D a 2D
+function project(point, ignoreShake = false) {
+    // Aplicar rotación
+    const cosX = Math.cos(state.rot.x);
+    const sinX = Math.sin(state.rot.x);
+    const cosY = Math.cos(state.rot.y);
+    const sinY = Math.sin(state.rot.y);
+    const cosZ = Math.cos(state.rot.z);
+    const sinZ = Math.sin(state.rot.z);
+
+    let x = point.x;
+    let y = point.y;
+    let z = point.z;
+
+    // Rotación en Z (roll)
+    const xz = x * cosZ - y * sinZ;
+    const yz = x * sinZ + y * cosZ;
+    x = xz;
+    y = yz;
+
+    // Rotación en Y (yaw)
+    const xy = x * cosY - z * sinY;
+    const zy = x * sinY + z * cosY;
+    x = xy;
+    z = zy;
+
+    // Rotación en X (pitch)
+    const yx = y * cosX - z * sinX;
+    const zx = y * sinX + z * cosX;
+    y = yx;
+    z = zx;
+
+    // Aplicar posición de la cámara (el mundo se mueve alrededor de la cámara)
+    const camX = x + state.pos.x;
+    const camY = y + state.pos.y;
+    const camZ = z + state.pos.z;
+
+    // Proyección perspectiva con zoom
+    const scale = (1000 / (1000 + camZ)) * state.zoom;
+    
+    let projectedX = camX * scale + canvas.width / 2;
+    let projectedY = camY * scale + canvas.height / 2;
+
+    // Aplicar sacudida de cámara si no se ignora
+    if (!ignoreShake && state.cameraShake.intensity > 0) {
+        projectedX += (Math.random() - 0.5) * state.cameraShake.intensity * 2;
+        projectedY += (Math.random() - 0.5) * state.cameraShake.intensity * 2;
+    }
+
+    return {
+        x: projectedX,
+        y: projectedY,
+        z: camZ  // Para ordenamiento de profundidad
+    };
+}
+
+// Dibujar wireframe
+function drawWireframe(points, strokeStyle = ctx.strokeStyle) {
+    ctx.beginPath();
+    const start = project(points[0]);
+    ctx.moveTo(start.x, start.y);
+    ctx.strokeStyle = strokeStyle; // Establecer el color
+
+    for (let i = 1; i < points.length; i++) {
+        const proj = project(points[i]);
+        ctx.lineTo(proj.x, proj.y);
+    }
+    ctx.stroke();
+    ctx.strokeStyle = '#00FF00'; // Volver al color original del TIE
+}
+
+// Dibujar la nave completa
+function drawTieFighter() {
+    drawWireframe(tieFighter.leftWing);
+    drawWireframe(tieFighter.rightWing);
+    drawWireframe(tieFighter.cockpit);
+    drawWireframe(tieFighter.connector);
+
+    // Dibujar cañones láser
+    tieFighter.laserCannons.forEach(cannon => {
+        const projCannon = project(cannon);
+        ctx.beginPath();
+        ctx.arc(projCannon.x, projCannon.y, 3 * state.zoom, 0, Math.PI * 2); // Pequeño círculo para el cañón
+        ctx.stroke();
+    });
+
+    // Dibujar lanzadores de torpedos
+    tieFighter.torpedoLaunchers.forEach(launcher => {
+        const projLauncher = project(launcher);
+        ctx.beginPath();
+        ctx.rect(projLauncher.x - 4 * state.zoom, projLauncher.y - 4 * state.zoom, 8 * state.zoom, 8 * state.zoom); // Cuadrado pequeño para el lanzador
+        ctx.stroke();
+    });
+
+    // Dibujar toberas
+    tieFighter.hyperdriveThrusters.forEach(thruster => {
+        const projThruster = project(thruster);
+        ctx.beginPath();
+        ctx.arc(projThruster.x, projThruster.y, 5 * state.zoom, 0, Math.PI * 2); // Círculo para la tobera
+        ctx.stroke();
+    });
+
+    // Dibujar cruz del cockpit
+    const center = project({ x: 0, y: 0, z: 0 });
+    ctx.beginPath();
+    ctx.arc(center.x, center.y, 15 * state.zoom, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Dibujar láser si se está disparando
+    if (state.firingLaser) {
+        ctx.save();
+        ctx.strokeStyle = '#00FF00'; // Color verde brillante para el láser
+        ctx.lineWidth = 2 + state.laserUpgradeLevel * 2; // Láser más ancho con mejoras
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = '#00FF00';
+
+        // Proyectar un punto de origen para el láser (desde el frente del cockpit)
+        const laserOrigin = project({ x: 0, y: 0, z: -25 });
+        
+        // Proyectar la posición del mouse como el objetivo del láser
+        const laserTargetX = state.mouse.x;
+        const laserTargetY = state.mouse.y;
+
+        ctx.beginPath();
+        ctx.moveTo(laserOrigin.x, laserOrigin.y);
+        ctx.lineTo(laserTargetX, laserTargetY);
+        ctx.stroke();
+        ctx.restore();
+    }
+
+    // Dibujar torpedos
+    state.torpedos.forEach(torpedo => {
+        torpedo.draw();
+    });
+}
+
+// Dibujar fondo de estrellas y efecto de hipervelocidad
+function drawBackground() {
+    ctx.fillStyle = '#FFFFFF'; // Color de las estrellas
+    state.stars.forEach(star => {
+        const proj = project(star, true); // Proyectar las estrellas también para movimiento, ignorar shake
+
+        // Efecto de hipervelocidad
+        if (state.hyperSpeed) {
+            ctx.beginPath();
+            ctx.moveTo(proj.x, proj.y);
+            // Calcular el punto final de la línea para el efecto de estiramiento
+            const stretchFactor = 50; // Qué tan largas son las líneas
+            const endX = proj.x + (proj.x - canvas.width / 2) * stretchFactor / Math.abs(proj.z);
+            const endY = proj.y + (proj.y - canvas.height / 2) * stretchFactor / Math.abs(proj.z);
+            ctx.strokeStyle = '#ADD8E6'; // Color azul claro para el efecto de warp
+            ctx.lineWidth = star.size * 0.5;
+            ctx.lineTo(endX, endY);
+            ctx.stroke();
+        } else {
+            ctx.beginPath();
+            ctx.arc(proj.x, proj.y, star.size * state.zoom, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    });
+}
+
+// Dibujar interfaz de usuario (HUD)
+function drawHUD() {
+    ctx.fillStyle = '#00FF00';
+    ctx.font = '16px "Courier New", monospace';
+
+    // Contadores
+    ctx.fillText(`ENEMIGOS ACTIVOS: ${state.activeEnemies}`, 10, canvas.height - 90);
+    ctx.fillText(`ENEMIGOS ELIMINADOS: ${state.eliminatedEnemies}`, 10, canvas.height - 70);
+    ctx.fillText(`BLOQUEADO: ${state.lockedTarget ? 'SI' : 'NO'}`, 10, canvas.height - 50);
+
+
+    // Barra de energía
+    const healthBarWidth = 200;
+    const healthBarHeight = 20;
+    const healthBarX = canvas.width / 2 - healthBarWidth / 2;
+    const healthBarY = canvas.height - 40;
+
+    ctx.strokeStyle = '#00FF00';
+    ctx.strokeRect(healthBarX, healthBarY, healthBarWidth, healthBarHeight);
+    
+    const currentHealthRatio = state.playerHealth / state.playerMaxHealth;
+    const currentHealthWidth = currentHealthRatio * healthBarWidth;
+
+    // Cambiar color de la barra según la energía
+    if (currentHealthRatio > 0.6) {
+        ctx.fillStyle = '#00FF00'; // Verde
+    } else if (currentHealthRatio > 0.3) {
+        ctx.fillStyle = '#FFFF00'; // Amarillo
+    } else {
+        ctx.fillStyle = '#FF0000'; // Rojo
+    }
+    ctx.fillRect(healthBarX, healthBarY, currentHealthWidth, healthBarHeight);
+
+    ctx.fillStyle = '#00FF00'; // Color de texto verde para la energía
+    ctx.fillText(`ENERGIA: ${state.playerHealth.toFixed(2)}/${state.playerMaxHealth.toFixed(2)}`, healthBarX + healthBarWidth / 2 - 50, healthBarY - 5);
+
+    // Giroscopio
+    const gyroCenterX = 100;
+    const gyroCenterY = canvas.height - 150;
+    const gyroRadius = 40;
+
+    ctx.strokeStyle = '#00FF00';
+    ctx.beginPath();
+    ctx.arc(gyroCenterX, gyroCenterY, gyroRadius, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Líneas del giroscopio representando rotación
+    ctx.save();
+    ctx.translate(gyroCenterX, gyroCenterY);
+    ctx.rotate(state.rot.z); // Roll
+    ctx.beginPath();
+    ctx.moveTo(-gyroRadius, 0);
+    ctx.lineTo(gyroRadius, 0);
+    ctx.moveTo(0, -gyroRadius);
+    ctx.lineTo(0, gyroRadius);
+    ctx.stroke();
+    ctx.restore();
+
+    // Línea de pitch (adelante/atrás)
+    ctx.beginPath();
+    ctx.arc(gyroCenterX, gyroCenterY, gyroRadius * Math.abs(state.rot.x / (Math.PI / 2)), 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Línea de yaw (izquierda/derecha)
+    ctx.beginPath();
+    ctx.arc(gyroCenterX + gyroRadius * state.rot.y / (Math.PI / 2), gyroCenterY, 5, 0, Math.PI * 2);
+    ctx.fill();
+
+    if (state.playerHealth <= 0) {
+        ctx.font = '40px "Courier New", monospace';
+        ctx.fillStyle = '#FF0000';
+        ctx.fillText("¡NAVE DESTRUIDA!", canvas.width / 2 - 180, canvas.height / 2);
+    }
+}
+
+
+// Distancia entre dos puntos 3D
+function distance3D(p1, p2) {
+    const dx = p1.x - p2.x;
+    const dy = p1.y - p2.y;
+    const dz = p1.z - p2.z;
+    return Math.sqrt(dx * dx + dy * dy + dz * dz);
+}
+
+// Actualizar física
+function update(deltaTime) {
+    const currentTime = Date.now();
+
+    if (state.playerHealth <= 0) {
+        // Detener el juego si la nave está destruida
+        state.vel = { x: 0, y: 0, z: 0 };
+        state.keys = {};
+        state.firingLaser = false;
+        state.firingTorpedo = false;
+        return;
+    }
+
+    // Actualizar sacudida de cámara
+    if (state.cameraShake.intensity > 0) {
+        const elapsed = currentTime - state.cameraShake.startTime;
+        if (elapsed < state.cameraShake.duration) {
+            // Decay function for intensity (e.g., linear decay)
+            state.cameraShake.intensity = state.cameraShake.initialIntensity * (1 - (elapsed / state.cameraShake.duration));
+        } else {
+            state.cameraShake.intensity = 0; // Stop shaking
+        }
+    }
+
+
+    // Movimiento con WASD
+    const moveSpeed = state.speed * deltaTime;
+    
+    if (state.keys['w']) state.vel.z -= moveSpeed; // Adelante
+    if (state.keys['s']) state.vel.z += moveSpeed;  // Atrás
+    if (state.keys['a']) state.vel.x -= moveSpeed;  // Izquierda
+    if (state.keys['d']) state.vel.x += moveSpeed;  // Derecha
+    if (state.keys['q']) state.rot.z -= 0.03 * deltaTime; // Rotar izquierda
+    if (state.keys['e']) state.rot.z += 0.03 * deltaTime; // Rotar derecha
+    if (state.keys[' ']) { // Frenar
+        state.vel.x *= 0.9;
+        state.vel.y *= 0.9; // También frenar en Y
+        state.vel.z *= 0.9;
+    }
+
+    // Activar/desactivar hipervelocidad con 'h'
+    if (state.keys['h'] && !state.hyperSpeed) {
+        state.hyperSpeed = true;
+        state.speed = 50; // Aumentar la velocidad drásticamente
+    } else if (!state.keys['h'] && state.hyperSpeed) {
+        state.hyperSpeed = false;
+        state.speed = 3; // Volver a la velocidad normal
+    }
+
+    // Rotación con mouse (solo si no hay rotación con teclado)
+    if (!state.keys['q'] && !state.keys['e']) {
+        state.rot.y = (state.mouse.x / canvas.width - 0.5) * 2;
+        state.rot.x = -(state.mouse.y / canvas.height - 0.5);
+    }
+
+    // Aplicar velocidad y fricción
+    state.pos.x += state.vel.x;
+    state.pos.y += state.vel.y;
+    state.pos.z += state.vel.z;
+    
+    state.vel.x *= 0.98;
+    state.vel.y *= 0.98;
+    state.vel.z *= 0.98;
+
+    // Regeneración de energía
+    if (currentTime - state.lastLaserFireTime > state.healthRegenCooldown && state.playerHealth < state.playerMaxHealth) {
+        const timeSinceLastRegen = currentTime - state.lastHealthRegenTime;
+        state.playerHealth = Math.min(state.playerMaxHealth, state.playerHealth + state.healthRegenRate * timeSinceLastRegen);
+    }
+    state.lastHealthRegenTime = currentTime;
+
+
+    // Actualizar torpedos
+    state.torpedos.forEach((torpedo, index) => {
+        torpedo.update();
+        if (!torpedo.isAlive()) {
+            state.torpedos.splice(index, 1);
+        }
+    });
+
+    // Actualizar láseres enemigos
+    state.enemyLasers.forEach((laser, index) => {
+        laser.update();
+        if (!laser.isAlive()) {
+            state.enemyLasers.splice(index, 1);
+        }
+        // Colisión láser enemigo con jugador
+        // Aproximación de colisión: si el láser está cerca del centro del TIE Fighter
+        const collisionDistance = 25; // Radio de colisión aproximado para el jugador
+
+        if (distance3D(laser.pos, {x: 0, y: 0, z: 0}) < collisionDistance) {
+            state.playerHealth--;
+            state.enemyLasers.splice(index, 1); // Eliminar láser al impactar
+            
+            // Activar sacudida de cámara
+            state.cameraShake.intensity = 5; // Intensidad de la sacudida
+            state.cameraShake.initialIntensity = 5;
+            state.cameraShake.duration = 200; // Duración en milisegundos
+            state.cameraShake.startTime = currentTime;
+
+            // Añadir flash de impacto en la posición del jugador
+            state.impactFlashes.push(new ImpactFlash(0, 0, 0)); // En el centro del TIE Fighter
+
+            if (state.playerHealth <= 0) {
+                // Game Over
+            }
+        }
+    });
+
+    // Lógica de selección de objetivo (hover)
+    // Solo actualizamos selectedTarget si no hay un lockedTarget
+    if (!state.lockedTarget) {
+        state.selectedTarget = null; // Resetear el objetivo en cada frame
+        let closestEnemy = null;
+        let minDistanceToCursor = Infinity;
+        const targetingRadius = 70; // Radio amplio para el targeting en pantalla
+
+        state.enemies.forEach(enemy => {
+            const projectedEnemy = project(enemy.pos, true); // Obtener la posición del enemigo en pantalla sin sacudida
+            const distToCursor = Math.sqrt(
+                Math.pow(projectedEnemy.x - state.mouse.x, 2) +
+                Math.pow(projectedEnemy.y - state.mouse.y, 2)
+            );
+
+            // Solo considerar enemigos que están dentro de un rango razonable en Z para apuntar
+            if (distToCursor < targetingRadius && enemy.pos.z < state.pos.z + 800 && enemy.pos.z > state.pos.z - 800) {
+                if (distToCursor < minDistanceToCursor) {
+                    minDistanceToCursor = distToCursor;
+                    closestEnemy = enemy;
+                }
+            }
+        });
+        state.selectedTarget = closestEnemy;
+    } else {
+        // Si hay un objetivo bloqueado, selectedTarget es el mismo que lockedTarget
+        state.selectedTarget = state.lockedTarget;
+    }
+
+
+    // Actualizar enemigos
+    state.enemies.forEach((enemy, enemyIndex) => {
+        enemy.update(deltaTime);
+
+        // Colisión láser verde con enemigo
+        if (state.firingLaser && (currentTime - state.lastLaserFireTime > state.laserFireCooldown)) {
+            const laserHitRadius = 15 + state.laserUpgradeLevel * 5; // Radio de impacto del láser
+            const enemyScreenPos = project(enemy.pos, true); // Proyectar la posición del enemigo sin sacudida para la detección del mouse
+
+            // Determinar si el X-Wing está dentro del área de impacto del láser en pantalla
+            if (distance3D(enemy.pos, {x: 0, y: 0, z: 0}) < 1000 && // Solo si el enemigo está cerca
+                Math.abs(enemyScreenPos.x - state.mouse.x) < laserHitRadius &&
+                Math.abs(enemyScreenPos.y - state.mouse.y) < laserHitRadius) {
+                
+                enemy.health -= 2; // Doble de daño por láser
+                state.playerHealth = Math.max(0, state.playerHealth - 0.05); // Consumir 0.05 de energía
+                state.lastLaserFireTime = currentTime; // Reiniciar cooldown de disparo
+
+                if (enemy.health <= 0) {
+                    // Crear partículas de explosión
+                    for (let i = 0; i < 30; i++) {
+                        const speed = Math.random() * 10 + 2;
+                        const angle = Math.random() * Math.PI * 2;
+                        const pitch = Math.random() * Math.PI - Math.PI / 2;
+                        const velX = speed * Math.cos(angle) * Math.cos(pitch);
+                        const velY = speed * Math.sin(angle) * Math.cos(pitch);
+                        const velZ = speed * Math.sin(pitch);
+                        state.explosionParticles.push(new ExplosionParticle(enemy.pos.x, enemy.pos.y, enemy.pos.z, velX, velY, velZ));
+                    }
+
+                    state.enemies.splice(enemyIndex, 1);
+                    state.eliminatedEnemies++;
+                    state.activeEnemies--;
+                    // Deseleccionar y desbloquear si el objetivo fue destruido por láser
+                    if (state.selectedTarget === enemy) {
+                        state.selectedTarget = null;
+                    }
+                    if (state.lockedTarget === enemy) {
+                        state.lockedTarget = null;
+                    }
+                }
+            }
+        }
+    });
+
+    // Actualizar partículas de explosión
+    state.explosionParticles.forEach((particle, index) => {
+        particle.update();
+        if (particle.life <= 0) {
+            state.explosionParticles.splice(index, 1);
+        }
+    });
+
+    // Actualizar flashes de impacto
+    state.impactFlashes.forEach((flash, index) => {
+        flash.update();
+        if (!flash.isAlive()) {
+            state.impactFlashes.splice(index, 1);
+        }
+    });
+
+
+    // Mover las estrellas en hipervelocidad
+    if (state.hyperSpeed) {
+        state.stars.forEach(star => {
+            star.z += state.speed * 5; // Mover estrellas más rápido en Z
+            if (star.z > 1000) { // Si la estrella pasa la cámara, resetearla
+                star.z -= 2000;
+            }
+        });
+    } else {
+        // En velocidad normal, las estrellas también deberían moverse un poco si la nave se mueve
+        state.stars.forEach(star => {
+            star.z += state.vel.z * 0.1; // Ajuste menor para movimiento de fondo
+            if (star.z > 1000) {
+                star.z -= 2000;
+            } else if (star.z < -1000) {
+                star.z += 2000;
+            }
+        });
+    }
+}
+
+// Bucle de animación
+let lastTime = 0;
+let lastEnemySpawnTime = 0;
+const enemySpawnInterval = 3000; // Cada 3 segundos un nuevo enemigo
+
+function animate(currentTime) {
+    const deltaTime = (currentTime - lastTime) / 16; // ~60fps
+    lastTime = currentTime;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    drawBackground(); // Dibujar el fondo primero
+    update(deltaTime);
+    drawTieFighter();
+
+    // Dibujar enemigos
+    state.enemies.forEach(enemy => {
+        enemy.draw();
+    });
+
+    // Dibujar láseres enemigos
+    state.enemyLasers.forEach(laser => {
+        laser.draw();
+    });
+
+    // Dibujar partículas de explosión
+    state.explosionParticles.forEach(particle => {
+        particle.draw();
+    });
+
+    // Dibujar flashes de impacto
+    state.impactFlashes.forEach(flash => {
+        flash.draw();
+    });
+
+    drawHUD(); // Dibujar la interfaz de usuario al final
+
+    // Generar nuevos enemigos si es necesario
+    if (currentTime - lastEnemySpawnTime > enemySpawnInterval && state.playerHealth > 0) {
+        spawnEnemy();
+        lastEnemySpawnTime = currentTime;
+    }
+    
+    requestAnimationFrame(animate);
+}
+
+// Eventos de teclado
+window.addEventListener('keydown', (e) => {
+    state.keys[e.key.toLowerCase()] = true;
+    if (e.key.toLowerCase() === 'u') { // Tecla 'U' para mejorar el láser
+        state.laserUpgradeLevel = Math.min(state.laserUpgradeLevel + 1, 3); // Limitar mejoras
+    }
+    if (e.key.toLowerCase() === 'f' && !state.fKeyPressed) { // Tecla 'F' para bloqueo de objetivo
+        state.fKeyPressed = true;
+        if (state.lockedTarget) {
+            // Si ya hay un objetivo bloqueado, desbloquearlo
+            state.lockedTarget = null;
+        } else if (state.selectedTarget) {
+            // Si no hay objetivo bloqueado pero hay uno seleccionado (hover), bloquearlo
+            state.lockedTarget = state.selectedTarget;
+        }
+    }
+});
+
+window.addEventListener('keyup', (e) => {
+    state.keys[e.key.toLowerCase()] = false;
+    if (e.key.toLowerCase() === 'f') {
+        state.fKeyPressed = false;
+    }
+});
+
+// Eventos de mouse
+canvas.addEventListener('mousemove', (e) => {
+    state.mouse.x = e.clientX;
+    state.mouse.y = e.clientY;
+});
+
+canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    state.zoom -= e.deltaY * 0.001;
+    state.zoom = Math.max(0.3, Math.min(state.zoom, 1.5));
+});
+
+// Evento de clic para disparar el láser y torpedos
+canvas.addEventListener('mousedown', (e) => {
+    const currentTime = Date.now();
+    if (e.button === 0) { // Botón izquierdo del mouse para láser
+        state.firingLaser = true;
+        // La lógica de consumo de energía y cooldown se maneja en el update
+    }
+    if (e.button === 2) { // Botón derecho del mouse para torpedos
+        let targetForTorpedo = state.lockedTarget || state.selectedTarget; // Priorizar bloqueado
+
+        if (currentTime - state.lastTorpedoFireTime > state.torpedoFireCooldown) {
+            state.firingTorpedo = true;
+            // Obtener la posición 3D del lanzador y el objetivo del torpedo
+            const launcherPos = tieFighter.torpedoLaunchers[0]; // Usar el primer lanzador como ejemplo
+            // Transformar la posición del lanzador a coordenadas del mundo para el torpedo
+            const torpedoStartX = state.pos.x + launcherPos.x;
+            const torpedoStartY = state.pos.y + launcherPos.y;
+            const torpedoStartZ = state.pos.z + launcherPos.z;
+            
+            if (targetForTorpedo) {
+                // Pasar el objeto enemigo (bloqueado o seleccionado) al torpedo para guiado
+                state.torpedos.push(new ProtonTorpedo(torpedoStartX, torpedoStartY, torpedoStartZ, targetForTorpedo));
+            } else {
+                // Si no hay objetivo, disparar el torpedo recto hacia el frente (ejemplo simple)
+                // Aquí podrías calcular un vector de dirección basado en la rotación de la nave
+                // Por simplicidad, se dispara recto en Z negativo relativo a la nave
+                const viewDistance = 5000; // Torpedo vuela recto para esta distancia si no hay objetivo
+                const pitch = state.rot.x;
+                const yaw = state.rot.y;
+
+                // Calcular el punto objetivo en el espacio 3D basado en la dirección de la nave
+                const straightTarget = {
+                    pos: {
+                        x: torpedoStartX + Math.sin(yaw) * viewDistance,
+                        y: torpedoStartY - Math.sin(pitch) * viewDistance,
+                        z: torpedoStartZ - Math.cos(yaw) * Math.cos(pitch) * viewDistance
+                    }
+                };
+                state.torpedos.push(new ProtonTorpedo(torpedoStartX, torpedoStartY, torpedoStartZ, straightTarget));
+            }
+            state.lastTorpedoFireTime = currentTime; // Actualizar cooldown del torpedo
+        }
+    }
+});
+
+canvas.addEventListener('mouseup', (e) => {
+    if (e.button === 0) { // Botón izquierdo del mouse para láser
+        state.firingLaser = false;
+    }
+    if (e.button === 2) { // Botón derecho del mouse para torpedos
+        state.firingTorpedo = false;
+    }
+});
+
+// Deshabilitar menú contextual del botón derecho para que el torpedo funcione
+canvas.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+});
+
+// Redimensionamiento
+window.addEventListener('resize', () => {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+});
+
+// Iniciar
+animate(0);
+    </script>
+</body>
 </html>
