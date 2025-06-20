@@ -1,2 +1,2 @@
 Demo
-[Stellar Gamet](https://ravendano014.github.io/stellar/)
+[Stellar Game](https://ravendano014.github.io/stellar/)
